@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import axios from 'axios'
 import { formatDistanceToNow, subHours, subMinutes } from 'date-fns'
 import { Mail, Star, Paperclip } from 'lucide-react'
 import { useAuth } from '../auth/AuthContext.jsx'
+import { useVisibilityRefresh } from '../hooks/useVisibilityRefresh.js'
 
 /* ------------------------------------------------------------------ */
 /*  Mock fallback                                                     */
@@ -83,52 +84,48 @@ export default function EmailWidget() {
   const [emails, setEmails] = useState(buildMockEmails)
   const { token } = useAuth()
 
-  useEffect(() => {
+  const fetchRef = useRef(async () => {})
+  fetchRef.current = async () => {
     if (!token) { setEmails(buildMockEmails()); return }
-
-    let cancelled = false
-    const fetchEmails = async () => {
-      try {
-        const headers = { Authorization: `Bearer ${token}` }
-        // 1. List ids of important+unread+primary inbox messages
-        const list = await axios.get(
-          'https://gmail.googleapis.com/gmail/v1/users/me/messages',
-          {
-            headers,
-            params: {
-              // Gmail's "Important" category — surfaces emails Google's
-              // ML model has flagged as important to the user, regardless of
-              // read state. This is the same set you'd see under the
-              // Important label in Gmail.
-              q: 'is:important -category:promotions -category:social',
-              maxResults: 5
-            }
+    try {
+      const headers = { Authorization: `Bearer ${token}` }
+      const list = await axios.get(
+        'https://gmail.googleapis.com/gmail/v1/users/me/messages',
+        {
+          headers,
+          params: {
+            q: 'is:important -category:promotions -category:social',
+            maxResults: 5
           }
-        )
-        const ids = (list.data?.messages ?? []).map(m => m.id)
-        if (!ids.length) { if (!cancelled) setEmails([]); return }
+        }
+      )
+      const ids = (list.data?.messages ?? []).map(m => m.id)
+      if (!ids.length) { setEmails([]); return }
 
-        // 2. Fetch metadata for each in parallel
-        const details = await Promise.all(ids.map(id =>
-          axios.get(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${id}`, {
-            headers,
-            params: {
-              format: 'metadata',
-              metadataHeaders: ['From', 'Subject', 'Date']
-            }
-          }).then(r => r.data)
-        ))
-
-        if (!cancelled) setEmails(details.map(mapGmailMessage))
-      } catch (err) {
-        console.warn('[Gmail] falling back to mock:', err.message)
-      }
+      const details = await Promise.all(ids.map(id =>
+        axios.get(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${id}`, {
+          headers,
+          params: {
+            format: 'metadata',
+            metadataHeaders: ['From', 'Subject', 'Date']
+          }
+        }).then(r => r.data)
+      ))
+      setEmails(details.map(mapGmailMessage))
+    } catch (err) {
+      console.warn('[Gmail] falling back to mock:', err.message)
     }
+  }
 
-    fetchEmails()
-    const id = setInterval(fetchEmails, 2 * 60 * 1000) // every 2 min
-    return () => { cancelled = true; clearInterval(id) }
+  useEffect(() => {
+    fetchRef.current?.()
+    // Poll every 30 s for near-real-time inbox updates.
+    const id = setInterval(() => fetchRef.current?.(), 30 * 1000)
+    return () => clearInterval(id)
   }, [token])
+
+  // Refresh instantly when the TV/tab wakes up.
+  useVisibilityRefresh(() => fetchRef.current?.())
 
   const importantCount = emails.length
   const labelText = token ? 'important' : 'unread'

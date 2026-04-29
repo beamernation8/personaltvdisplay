@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import axios from 'axios'
 import { format, addHours, addMinutes, startOfDay, isToday, isThisWeek, isTomorrow } from 'date-fns'
 import { CalendarDays, MapPin } from 'lucide-react'
 import { useAuth } from '../auth/AuthContext.jsx'
+import { useVisibilityRefresh } from '../hooks/useVisibilityRefresh.js'
 
 /* Color cycle for left bar — rotates through events */
 const COLORS = [
@@ -80,36 +81,40 @@ export default function CalendarWidget() {
   const [events, setEvents] = useState(buildMockEvents)
   const { token } = useAuth()
 
-  useEffect(() => {
-    // Falls back to mock data when no Google token is present.
+  const fetchRef = useRef(async () => {})
+  fetchRef.current = async () => {
     if (!token) { setEvents(buildMockEvents()); return }
-
-    let cancelled = false
-    const fetchEvents = async () => {
-      try {
-        const { data } = await axios.get(
-          'https://www.googleapis.com/calendar/v3/calendars/primary/events',
-          {
-            headers: { Authorization: `Bearer ${token}` },
-            params: {
-              timeMin:      new Date().toISOString(),
-              singleEvents: true,
-              orderBy:      'startTime',
-              maxResults:   8
-            }
+    try {
+      const { data } = await axios.get(
+        'https://www.googleapis.com/calendar/v3/calendars/primary/events',
+        {
+          headers: { Authorization: `Bearer ${token}` },
+          params: {
+            timeMin:      new Date().toISOString(),
+            timeMax:      new Date(Date.now() + 14 * 86400_000).toISOString(),
+            singleEvents: true,
+            orderBy:      'startTime',
+            maxResults:   12
           }
-        )
-        const mapped = (data?.items ?? []).map(mapGoogleEvent)
-        if (!cancelled && mapped.length) setEvents(mapped)
-      } catch (err) {
-        console.warn('[Calendar] falling back to mock:', err.message)
-      }
+        }
+      )
+      const mapped = (data?.items ?? []).map(mapGoogleEvent)
+      setEvents(mapped.length ? mapped : [])
+    } catch (err) {
+      console.warn('[Calendar] falling back to mock:', err.message)
     }
+  }
 
-    fetchEvents()
-    const id = setInterval(fetchEvents, 5 * 60 * 1000) // every 5 min
-    return () => { cancelled = true; clearInterval(id) }
+  useEffect(() => {
+    fetchRef.current?.()
+    // Poll every 60 s — fast enough that a freshly-added event shows up
+    // within a minute on the TV.
+    const id = setInterval(() => fetchRef.current?.(), 60 * 1000)
+    return () => clearInterval(id)
   }, [token])
+
+  // Refresh instantly when the TV/tab wakes up.
+  useVisibilityRefresh(() => fetchRef.current?.())
 
   /* Split into Today + Later-this-week, then cap for clean fit. */
   const now = new Date()

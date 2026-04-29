@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import axios from 'axios'
 import { format, addHours, addDays } from 'date-fns'
 import { Trophy, Calendar, Radio, Tv } from 'lucide-react'
+import { useVisibilityRefresh } from '../hooks/useVisibilityRefresh.js'
 
 const SABRES_ABBR = 'BUF'
 
@@ -18,13 +19,24 @@ const MOCK_GAME = {
   series: null
 }
 
-/* Map an NHL API game object to our render shape */
-const mapGame = (g) => {
+/** Format the period descriptor object from the NHL API. */
+const formatPeriod = (pd) => {
+  if (!pd) return ''
+  if (pd.periodType === 'OT') return 'OT'
+  if (pd.periodType === 'SO') return 'SO'
+  const n = pd.number
+  if (!n) return ''
+  return n === 1 ? '1st' : n === 2 ? '2nd' : n === 3 ? '3rd' : `${n}th`
+}
+
+/** Map an NHL API game object to our render shape */
+const mapGame = (g, gc) => {
   const s = g.gameState
   const isLive  = s === 'LIVE' || s === 'CRIT' || s === 'PRE'
   const isFinal = s === 'FINAL' || s === 'OFF'
 
   const team = (t) => ({
+    id:    t.id,
     abbr:  t.abbrev,
     // NHL API: commonName.default ("Sabres"), placeName.default ("Buffalo")
     name:  t.commonName?.default ?? t.placeName?.default ?? t.abbrev,
@@ -46,14 +58,29 @@ const mapGame = (g) => {
     tv[0]?.network ??
     ''
 
+  // Live period + clock from the gamecenter "landing" feed (if available).
+  // Fall back to whatever the schedule entry includes so we still show
+  // something useful as soon as the schedule flips to LIVE.
+  const periodDesc = gc?.periodDescriptor ?? g.periodDescriptor
+  const clock      = gc?.clock           ?? g.clock
+  const homeScore  = gc?.homeTeam?.score ?? g.homeTeam.score ?? null
+  const awayScore  = gc?.awayTeam?.score ?? g.awayTeam.score ?? null
+
+  const homeTeam = { ...team(g.homeTeam), score: homeScore }
+  const awayTeam = { ...team(g.awayTeam), score: awayScore }
+
   return {
+    id: g.id,
     state: isLive ? 'live' : isFinal ? 'final' : 'upcoming',
     startsAt: new Date(g.startTimeUTC),
-    home: team(g.homeTeam),
-    away: team(g.awayTeam),
+    home: homeTeam,
+    away: awayTeam,
     venue: g.venue?.default ?? '',
     broadcast,
-    series
+    series,
+    period:        formatPeriod(periodDesc),
+    clock:         clock?.timeRemaining ?? '',
+    intermission:  clock?.inIntermission ?? false
   }
 }
 
@@ -95,27 +122,51 @@ const TeamLogo = ({ team, size = 88 }) => {
 
 export default function SabresWidget() {
   const [game, setGame] = useState(MOCK_GAME)
+  const [isLiveState, setIsLive] = useState(false)
+
+  const fetchRef = useRef(async () => {})
+  fetchRef.current = async () => {
+    try {
+      // 1. Pick the most relevant game from this week's schedule.
+      const { data } = await axios.get(
+        `/api/nhl/v1/club-schedule/${SABRES_ABBR}/week/now`
+      )
+      const next = pickRelevantGame(data?.games)
+      if (!next) return
+
+      const isLive = ['LIVE', 'CRIT', 'PRE'].includes(next.gameState)
+
+      // 2. If the game is live, fetch the gamecenter landing feed
+      //    for period / clock / live scores.
+      let gc = null
+      if (isLive) {
+        try {
+          const lr = await axios.get(`/api/nhl/v1/gamecenter/${next.id}/landing`)
+          gc = lr.data
+        } catch (err) {
+          console.warn('[Sabres] gamecenter fetch failed:', err.message)
+        }
+      }
+
+      setIsLive(isLive)
+      setGame(mapGame(next, gc))
+    } catch (err) {
+      console.warn('[Sabres] falling back to mock:', err.message)
+    }
+  }
 
   useEffect(() => {
-    // Hits the public NHL API via Vite proxy (browsers block the absolute URL via CORS).
-    // See vite.config.js → server.proxy['/api/nhl']
-    let cancelled = false
-    const fetchGame = async () => {
-      try {
-        const { data } = await axios.get(
-          `/api/nhl/v1/club-schedule/${SABRES_ABBR}/week/now`
-        )
-        const next = pickRelevantGame(data?.games)
-        if (next && !cancelled) setGame(mapGame(next))
-      } catch (err) {
-        console.warn('[Sabres] falling back to mock:', err.message)
-      }
-    }
+    fetchRef.current?.()
+    // 15 s during live games, 60 s otherwise.
+    const id = setInterval(
+      () => fetchRef.current?.(),
+      isLiveState ? 15_000 : 60_000
+    )
+    return () => clearInterval(id)
+  }, [isLiveState])
 
-    fetchGame()
-    const id = setInterval(fetchGame, 60_000) // refresh every minute for live scores
-    return () => { cancelled = true; clearInterval(id) }
-  }, [])
+  // Refresh instantly when the TV/tab wakes up.
+  useVisibilityRefresh(() => fetchRef.current?.())
 
   const isLive  = game.state === 'live'
   const isFinal = game.state === 'final'
@@ -135,7 +186,11 @@ export default function SabresWidget() {
         {isLive ? (
           <span className="flex items-center gap-2 rounded-full bg-rose-500/20 px-3 py-1 text-xs font-semibold text-rose-200 ring-1 ring-rose-400/40">
             <Radio className="h-3 w-3 animate-pulse" />
-            LIVE
+            {game.intermission
+              ? `${game.period || 'INT'} INT`
+              : game.period && game.clock
+                ? `${game.period} · ${game.clock}`
+                : 'LIVE'}
           </span>
         ) : isFinal ? (
           <span className="rounded-full bg-white/10 px-3 py-1 text-xs font-semibold text-white/70">
@@ -169,9 +224,25 @@ export default function SabresWidget() {
 
         {/* Center */}
         <div className="flex flex-col items-center gap-1 px-2">
-          {isLive || isFinal ? (
+          {isLive ? (
+            <>
+              <p className="text-sm font-semibold uppercase tracking-widest text-rose-200">
+                {game.intermission ? 'Intermission' : 'Live'}
+              </p>
+              {game.period && (
+                <p className="text-xs font-medium uppercase tracking-widest text-white/55">
+                  {game.period}
+                </p>
+              )}
+              {game.clock && !game.intermission && (
+                <p className="font-mono text-base font-semibold text-white">
+                  {game.clock}
+                </p>
+              )}
+            </>
+          ) : isFinal ? (
             <p className="text-sm font-semibold uppercase tracking-widest text-white/40">
-              {isLive ? 'Live' : 'Final'}
+              Final{game.period && game.period !== '3rd' ? ` / ${game.period}` : ''}
             </p>
           ) : (
             <>

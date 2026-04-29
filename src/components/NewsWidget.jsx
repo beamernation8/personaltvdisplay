@@ -1,14 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import axios from 'axios'
 import { formatDistanceToNow, subHours, subMinutes } from 'date-fns'
-import { Activity } from 'lucide-react'
-
-/* Topic styling — one chip per team/category */
-const TOPIC_STYLES = {
-  sabres:  { ring: 'ring-blue-400/40',    bg: 'bg-blue-500/15',    text: 'text-blue-200'    },
-  bills:   { ring: 'ring-rose-400/40',    bg: 'bg-rose-500/15',    text: 'text-rose-200'    },
-  fantasy: { ring: 'ring-emerald-400/40', bg: 'bg-emerald-500/15', text: 'text-emerald-200' }
-}
+import { Newspaper } from 'lucide-react'
+import { useVisibilityRefresh } from '../hooks/useVisibilityRefresh.js'
 
 /* ------------------------------------------------------------------ */
 /*  Mock fallback                                                     */
@@ -17,41 +11,33 @@ const MOCK_ITEMS = [
   {
     title: 'Sabres extend winning streak to six with overtime victory in Toronto',
     source: 'ESPN',
-    topic: 'sabres',
     topicLabel: 'Sabres',
     publishedAt: subMinutes(new Date(), 18).toISOString(),
+    image: 'https://images.unsplash.com/photo-1515703407324-5f51c225da9b?w=600&q=70',
     link: '#'
   },
   {
     title: 'Josh Allen named AFC Offensive Player of the Week after 4-TD performance',
     source: 'Bills.com',
-    topic: 'bills',
     topicLabel: 'Bills',
     publishedAt: subHours(new Date(), 1).toISOString(),
+    image: 'https://images.unsplash.com/photo-1566577739112-5180d4bf9390?w=600&q=70',
     link: '#'
   },
   {
     title: 'Fantasy Week 12 waiver wire: 5 must-add RBs after surprise Sunday',
     source: 'The Athletic',
-    topic: 'fantasy',
     topicLabel: 'Fantasy',
     publishedAt: subHours(new Date(), 2).toISOString(),
+    image: 'https://images.unsplash.com/photo-1487466365202-1afdb86c764e?w=600&q=70',
     link: '#'
   },
   {
     title: 'Sabres call up top prospect from Rochester ahead of road trip',
     source: 'Buffalo News',
-    topic: 'sabres',
     topicLabel: 'Sabres',
     publishedAt: subHours(new Date(), 3).toISOString(),
-    link: '#'
-  },
-  {
-    title: 'Bills clinch AFC East with dominant Thursday Night Football win',
-    source: 'NFL.com',
-    topic: 'bills',
-    topicLabel: 'Bills',
-    publishedAt: subHours(new Date(), 5).toISOString(),
+    image: null,
     link: '#'
   }
 ]
@@ -60,100 +46,139 @@ export default function NewsWidget() {
   const [items, setItems] = useState(MOCK_ITEMS)
   const [activeIdx, setActiveIdx] = useState(0)
 
-  useEffect(() => {
-    let cancelled = false
-    const fetchFeed = async () => {
-      try {
-        const { data } = await axios.get('/api/sports-news')
-        const arts = data?.items ?? []
-        if (arts.length && !cancelled) setItems(arts)
-      } catch (err) {
-        console.warn('[SportsFeed] falling back to mock:', err.message)
-      }
+  const fetchFeedRef = useRef(null)
+  fetchFeedRef.current = async () => {
+    try {
+      const { data } = await axios.get('/api/sports-news')
+      const arts = data?.items ?? []
+      if (arts.length) setItems(arts)
+    } catch (err) {
+      console.warn('[YourFeed] falling back to mock:', err.message)
     }
-    fetchFeed()
-    const id = setInterval(fetchFeed, 5 * 60 * 1000) // refresh every 5 min
-    return () => { cancelled = true; clearInterval(id) }
+  }
+
+  // Initial + every 2 minutes
+  useEffect(() => {
+    fetchFeedRef.current?.()
+    const id = setInterval(() => fetchFeedRef.current?.(), 2 * 60 * 1000)
+    return () => clearInterval(id)
   }, [])
 
-  /* Rotate the spotlighted post every 7s */
+  // Re-fetch immediately whenever the TV/tab wakes up
+  useVisibilityRefresh(() => fetchFeedRef.current?.())
+
+  /* Rotate the spotlighted post every 8s */
   useEffect(() => {
     if (items.length < 2) return
     const id = setInterval(() => {
       setActiveIdx(i => (i + 1) % Math.min(items.length, 5))
-    }, 7000)
+    }, 8000)
     return () => clearInterval(id)
   }, [items.length])
 
   const featured = items[activeIdx] ?? items[0]
-  const upcoming = items.filter((_, i) => i !== activeIdx).slice(0, 3)
-
-  const fStyle = TOPIC_STYLES[featured?.topic] ?? TOPIC_STYLES.sabres
+  const others   = items.filter((_, i) => i !== activeIdx).slice(0, 3)
 
   return (
-    <div className="glass relative flex h-full w-full flex-col p-7">
+    <div className="glass relative flex h-full w-full flex-col p-6">
       <header className="mb-3 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <Activity className="h-5 w-5 text-white/60" strokeWidth={1.8} />
-          <h2 className="widget-title">Buffalo Sports Feed</h2>
+          <Newspaper className="h-5 w-5 text-white/60" strokeWidth={1.8} />
+          <h2 className="widget-title">Your Feed</h2>
         </div>
         <div className="flex gap-1.5">
           {items.slice(0, 5).map((_, i) => (
             <span
               key={i}
-              className={`h-1.5 rounded-full transition-all duration-500 ${
-                i === activeIdx ? 'w-6 bg-white/80' : 'w-1.5 bg-white/20'
+              className={`h-1 rounded-full transition-all duration-500 ${
+                i === activeIdx ? 'w-5 bg-white/80' : 'w-1 bg-white/20'
               }`}
             />
           ))}
         </div>
       </header>
 
-      {/* Featured post */}
+      {/* Featured */}
       {featured && (
-        <div key={featured.link} className="animate-fade-in">
-          <span
-            className={`inline-block rounded-full px-2.5 py-0.5 text-[0.65rem]
-                        font-semibold uppercase tracking-widest ring-1
-                        ${fStyle.bg} ${fStyle.text} ${fStyle.ring}`}
-          >
-            {featured.topicLabel}
-          </span>
-          <p className="mt-2 text-balance text-[1.2rem] font-semibold leading-snug text-white">
-            {featured.title}
-          </p>
-          <p className="mt-1 flex items-center gap-2 text-xs text-white/45">
-            <span className="font-medium">{featured.source}</span>
-            {featured.publishedAt && (
-              <>
-                <span className="text-white/20">·</span>
-                <span>
-                  {formatDistanceToNow(new Date(featured.publishedAt), { addSuffix: true })}
-                </span>
-              </>
-            )}
-          </p>
-        </div>
+        <article
+          key={featured.link}
+          className="animate-fade-in flex items-center gap-4"
+        >
+          <Thumbnail src={featured.image} size={92} className="rounded-xl" />
+          <div className="min-w-0 flex-1">
+            <p className="line-clamp-2 text-balance text-[1.1rem] font-semibold leading-snug text-white">
+              {featured.title}
+            </p>
+            <p className="mt-1.5 flex items-center gap-1.5 text-[0.7rem] uppercase tracking-widest text-white/45">
+              <span className="font-semibold text-white/65">{featured.topicLabel}</span>
+              <span className="text-white/20">·</span>
+              <span>{featured.source}</span>
+              {featured.publishedAt && (
+                <>
+                  <span className="text-white/20">·</span>
+                  <span className="normal-case tracking-normal">
+                    {formatDistanceToNow(new Date(featured.publishedAt), { addSuffix: false })}
+                  </span>
+                </>
+              )}
+            </p>
+          </div>
+        </article>
       )}
 
-      {/* Upcoming list */}
-      <ul className="mt-auto space-y-1.5 border-t border-white/10 pt-3">
-        {upcoming.map(it => {
-          const style = TOPIC_STYLES[it.topic] ?? TOPIC_STYLES.sabres
-          return (
-            <li key={it.link} className="flex items-baseline gap-2.5 text-sm">
-              <span
-                className={`shrink-0 rounded-full px-2 py-0.5 text-[0.6rem]
-                            font-semibold uppercase tracking-widest ring-1
-                            ${style.bg} ${style.text} ${style.ring}`}
-              >
-                {it.topicLabel}
-              </span>
-              <span className="truncate text-white/65">{it.title}</span>
-            </li>
-          )
-        })}
+      {/* Compact list */}
+      <ul className="mt-auto space-y-2 border-t border-white/10 pt-3">
+        {others.map(it => (
+          <li key={it.link} className="flex items-center gap-3">
+            <Thumbnail src={it.image} size={36} className="rounded-md" />
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-[0.85rem] leading-tight text-white/85">
+                {it.title}
+              </p>
+              <p className="mt-0.5 flex items-center gap-1.5 text-[0.65rem] uppercase tracking-widest text-white/40">
+                <span className="font-semibold text-white/55">{it.topicLabel}</span>
+                <span className="text-white/15">·</span>
+                <span>{it.source}</span>
+                {it.publishedAt && (
+                  <>
+                    <span className="text-white/15">·</span>
+                    <span className="normal-case tracking-normal">
+                      {formatDistanceToNow(new Date(it.publishedAt), { addSuffix: false })}
+                    </span>
+                  </>
+                )}
+              </p>
+            </div>
+          </li>
+        ))}
       </ul>
     </div>
+  )
+}
+
+/* ------------------------------------------------------------------ */
+/* Image with graceful fallback to a subtle gradient tile             */
+function Thumbnail({ src, size, className = '' }) {
+  const [errored, setErrored] = useState(false)
+  const style = { width: size, height: size }
+  if (!src || errored) {
+    return (
+      <div
+        style={style}
+        className={`shrink-0 ${className}
+                    bg-gradient-to-br from-white/[0.08] to-white/[0.02]
+                    ring-1 ring-white/5`}
+      />
+    )
+  }
+  return (
+    <img
+      src={src}
+      alt=""
+      referrerPolicy="no-referrer"
+      onError={() => setErrored(true)}
+      style={style}
+      className={`shrink-0 object-cover ${className} ring-1 ring-white/10`}
+    />
   )
 }

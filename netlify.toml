@@ -1,0 +1,23 @@
+[build]
+  command   = "npm run build"
+  publish   = "dist"
+  functions = "netlify/functions"
+
+# Build-time env (Vite needs VITE_* vars baked in).
+# OAuth Client IDs are public by design — safe to commit.
+[build.environment]
+  VITE_GOOGLE_CLIENT_ID = "812118282219-crhsi731r4ad0toqnjasofcef0rehke0.apps.googleusercontent.com"
+
+# Forward /api/nhl/* to the serverless NHL proxy function.
+# Same path the Vite dev proxy uses, so no widget code changes are needed.
+[[redirects]]
+  from   = "/api/nhl/*"
+  to     = "/.netlify/functions/nhl/:splat"
+  status = 200
+  force  = true
+
+# SPA fallback — serve index.html for any unmatched route.
+[[redirects]]
+  from   = "/*"
+  to     = "/index.html"
+  status = 200

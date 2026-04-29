@@ -1,0 +1,13 @@
+{
+  "framework": "vite",
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist",
+  "build": {
+    "env": {
+      "VITE_GOOGLE_CLIENT_ID": "812118282219-crhsi731r4ad0toqnjasofcef0rehke0.apps.googleusercontent.com"
+    }
+  },
+  "rewrites": [
+    { "source": "/((?!api/).*)", "destination": "/index.html" }
+  ]
+}

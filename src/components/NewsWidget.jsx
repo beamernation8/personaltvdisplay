@@ -104,7 +104,12 @@ export default function NewsWidget() {
           key={featured.link}
           className="animate-fade-in flex items-center gap-4"
         >
-          <Thumbnail src={featured.image} size={92} className="rounded-xl" />
+          <Thumbnail
+            src={featured.image}
+            domain={featured.domain}
+            size={92}
+            className="rounded-xl"
+          />
           <div className="min-w-0 flex-1">
             <p className="line-clamp-2 text-balance text-[1.1rem] font-semibold leading-snug text-white">
               {featured.title}
@@ -130,7 +135,12 @@ export default function NewsWidget() {
       <ul className="mt-auto space-y-2 border-t border-white/10 pt-3">
         {others.map(it => (
           <li key={it.link} className="flex items-center gap-3">
-            <Thumbnail src={it.image} size={36} className="rounded-md" />
+            <Thumbnail
+              src={it.image}
+              domain={it.domain}
+              size={36}
+              className="rounded-md"
+            />
             <div className="min-w-0 flex-1">
               <p className="truncate text-[0.85rem] leading-tight text-white/85">
                 {it.title}
@@ -157,28 +167,57 @@ export default function NewsWidget() {
 }
 
 /* ------------------------------------------------------------------ */
-/* Image with graceful fallback to a subtle gradient tile             */
-function Thumbnail({ src, size, className = '' }) {
-  const [errored, setErrored] = useState(false)
+/* Smart thumbnail:
+ *   1. Prefers the article's OpenGraph image (cropped, full-bleed).
+ *   2. Falls back to the publisher's favicon centered on a subtle tile.
+ *   3. Falls back again to a plain gradient tile if everything 404s.
+ */
+function Thumbnail({ src, domain, size, className = '' }) {
+  const [imgErrored, setImgErrored] = useState(false)
+  const [favErrored, setFavErrored] = useState(false)
   const style = { width: size, height: size }
-  if (!src || errored) {
+
+  if (src && !imgErrored) {
     return (
-      <div
+      <img
+        src={src}
+        alt=""
+        referrerPolicy="no-referrer"
+        onError={() => setImgErrored(true)}
         style={style}
-        className={`shrink-0 ${className}
-                    bg-gradient-to-br from-white/[0.08] to-white/[0.02]
-                    ring-1 ring-white/5`}
+        className={`shrink-0 object-cover ${className} ring-1 ring-white/10`}
       />
     )
   }
+
+  // Favicon tile fallback
+  if (domain && !favErrored) {
+    const faviconSize = Math.max(64, Math.min(size, 128))
+    return (
+      <div
+        style={style}
+        className={`flex shrink-0 items-center justify-center ${className}
+                    bg-gradient-to-br from-white/[0.08] to-white/[0.02]
+                    ring-1 ring-white/5`}
+      >
+        <img
+          src={`https://www.google.com/s2/favicons?sz=${faviconSize}&domain=${domain}`}
+          alt=""
+          referrerPolicy="no-referrer"
+          onError={() => setFavErrored(true)}
+          className="h-1/2 w-1/2 object-contain"
+        />
+      </div>
+    )
+  }
+
+  // Final fallback — empty tile
   return (
-    <img
-      src={src}
-      alt=""
-      referrerPolicy="no-referrer"
-      onError={() => setErrored(true)}
+    <div
       style={style}
-      className={`shrink-0 object-cover ${className} ring-1 ring-white/10`}
+      className={`shrink-0 ${className}
+                  bg-gradient-to-br from-white/[0.08] to-white/[0.02]
+                  ring-1 ring-white/5`}
     />
   )
 }

@@ -28,6 +28,22 @@ const pickTag = (block, tag) => {
   return m ? decode(m[1].trim()) : ''
 }
 
+/** Pull the `url="..."` attribute off a tag like `<source url="...">`. */
+const pickAttr = (block, tag, attr) => {
+  const m = block.match(new RegExp(`<${tag}[^>]*${attr}=["']([^"']+)["']`))
+  return m ? m[1] : ''
+}
+
+/** Extract host (e.g. "espn.com") from a URL, or null. */
+const hostOf = (url) => {
+  if (!url) return null
+  try {
+    return new URL(url).hostname.replace(/^www\./, '')
+  } catch {
+    return null
+  }
+}
+
 const stripSourceSuffix = (title, source) => {
   if (!source) return title
   // Google News appends " - SourceName" to every title
@@ -91,11 +107,14 @@ async function fetchTopic({ key, label, query }) {
     const link       = pickTag(block, 'link')
     const date       = pickTag(block, 'pubDate')
     const source     = pickTag(block, 'source')
+    const sourceUrl  = pickAttr(block, 'source', 'url')
     if (!rawTitle) continue
     items.push({
       title:       stripSourceSuffix(rawTitle, source),
       link,
       source:      source || 'Google News',
+      sourceUrl,
+      domain:      hostOf(sourceUrl),
       topic:       key,
       topicLabel:  label,
       publishedAt: date ? new Date(date).toISOString() : null
@@ -120,9 +139,20 @@ export default async function handler(req, res) {
 
     const top = merged.slice(0, 8)
 
-    // Fetch OpenGraph images for the top items in parallel (with timeout).
+    // Try to fetch real article OG images. Google News' RSS link is a
+    // wrapper that often returns the same interstitial thumbnail for
+    // every article, so we detect and discard those duplicates and
+    // let the client fall back to publisher favicons.
     const images = await Promise.all(top.map((it) => fetchOgImage(it.link)))
-    top.forEach((it, i) => { it.image = images[i] })
+    const counts = images.reduce((acc, url) => {
+      if (url) acc[url] = (acc[url] || 0) + 1
+      return acc
+    }, {})
+    top.forEach((it, i) => {
+      const url = images[i]
+      // Drop any image that appears multiple times (= Google News default).
+      it.image = url && counts[url] === 1 ? url : null
+    })
 
     res.setHeader('cache-control', 'public, s-maxage=300, stale-while-revalidate=600')
     res.setHeader('access-control-allow-origin', '*')

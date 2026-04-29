@@ -1,18 +1,14 @@
 // Vercel serverless function — proxies NHL API to bypass browser CORS.
-// File location: /api/nhl/[...path].js
-// Triggered by any request to /api/nhl/*
+// File: /api/nhl.js
 //
-// Example:
-//   GET /api/nhl/v1/club-schedule/BUF/week/now
-//     → https://api-web.nhle.com/v1/club-schedule/BUF/week/now
+// Routing: vercel.json rewrites every /api/nhl/<anything> request to
+//   /api/nhl?path=<anything>&<original-query-string>
+// so this single function handles all upstream paths.
 
 export default async function handler(req, res) {
-  // Vercel passes the captured catch-all segments under req.query.path
-  const segments = Array.isArray(req.query.path)
-    ? req.query.path
-    : [req.query.path].filter(Boolean)
+  const path = (req.query.path ?? '').toString()
 
-  // Preserve query string from the original request (excluding `path`)
+  // Forward all non-`path` query params to upstream.
   const qs = new URLSearchParams()
   for (const [k, v] of Object.entries(req.query)) {
     if (k === 'path') continue
@@ -21,8 +17,7 @@ export default async function handler(req, res) {
   const query = qs.toString()
 
   const upstream =
-    `https://api-web.nhle.com/${segments.join('/')}` +
-    (query ? `?${query}` : '')
+    `https://api-web.nhle.com/${path}` + (query ? `?${query}` : '')
 
   try {
     const r = await fetch(upstream, {

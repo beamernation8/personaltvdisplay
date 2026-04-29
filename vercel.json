@@ -8,6 +8,7 @@
     }
   },
   "rewrites": [
-    { "source": "/((?!api/).*)", "destination": "/index.html" }
+    { "source": "/api/nhl/:path*", "destination": "/api/nhl?path=:path*" },
+    { "source": "/((?!api/).*)",  "destination": "/index.html" }
   ]
 }

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useGoogleLogin } from '@react-oauth/google'
+import axios from 'axios'
 
 /**
  * Tiny client-side Google auth hook for a personal TV dashboard.
@@ -16,11 +17,17 @@ import { useGoogleLogin } from '@react-oauth/google'
 
 const STORAGE_KEY = 'tv_dashboard_google_token'
 
-// Read-only scopes — minimum needed for Calendar + Gmail widgets.
+// Read-only scopes — minimum needed for Calendar + Gmail widgets,
+// plus openid+profile so we can show the user's avatar in the AuthPill.
 export const GOOGLE_SCOPES = [
+  'openid',
+  'profile',
+  'email',
   'https://www.googleapis.com/auth/calendar.readonly',
   'https://www.googleapis.com/auth/gmail.readonly'
 ].join(' ')
+
+const PROFILE_KEY = 'tv_dashboard_google_profile'
 
 const loadStored = () => {
   try {
@@ -39,8 +46,14 @@ const saveStored = (val) => {
   else     localStorage.removeItem(STORAGE_KEY)
 }
 
+const loadProfile = () => {
+  try { return JSON.parse(localStorage.getItem(PROFILE_KEY) ?? 'null') }
+  catch { return null }
+}
+
 export function useGoogleAuth() {
   const [auth, setAuth] = useState(loadStored)
+  const [profile, setProfile] = useState(loadProfile)
   const renewTimer = useRef(null)
 
   const handleSuccess = useCallback((res) => {
@@ -81,7 +94,34 @@ export function useGoogleAuth() {
   })
 
   const signIn  = useCallback(() => interactiveLogin(), [interactiveLogin])
-  const signOut = useCallback(() => { saveStored(null); setAuth(null) }, [])
+  const signOut = useCallback(() => {
+    saveStored(null)
+    localStorage.removeItem(PROFILE_KEY)
+    setAuth(null)
+    setProfile(null)
+  }, [])
+
+  // Fetch the Google user profile (name + picture) whenever we have a fresh token.
+  useEffect(() => {
+    if (!auth?.access_token) return
+    let cancelled = false
+    axios
+      .get('https://www.googleapis.com/oauth2/v3/userinfo', {
+        headers: { Authorization: `Bearer ${auth.access_token}` }
+      })
+      .then((r) => {
+        if (cancelled) return
+        const p = {
+          name:    r.data.name,
+          email:   r.data.email,
+          picture: r.data.picture
+        }
+        localStorage.setItem(PROFILE_KEY, JSON.stringify(p))
+        setProfile(p)
+      })
+      .catch((err) => console.warn('[GoogleAuth] userinfo failed:', err.message))
+    return () => { cancelled = true }
+  }, [auth?.access_token])
 
   // Schedule silent renewal before the current token expires.
   useEffect(() => {
@@ -105,6 +145,7 @@ export function useGoogleAuth() {
 
   return {
     token: isAuthed ? auth.access_token : null,
+    profile,
     isAuthed,
     signIn,
     signOut

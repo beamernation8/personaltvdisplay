@@ -96,7 +96,11 @@ export default function EmailWidget() {
           {
             headers,
             params: {
-              q: 'is:unread is:important category:primary',
+              // Gmail's "Important" category — surfaces emails Google's
+              // ML model has flagged as important to the user, regardless of
+              // read state. This is the same set you'd see under the
+              // Important label in Gmail.
+              q: 'is:important -category:promotions -category:social',
               maxResults: 5
             }
           }
@@ -126,7 +130,8 @@ export default function EmailWidget() {
     return () => { cancelled = true; clearInterval(id) }
   }, [token])
 
-  const unreadCount = emails.length
+  const importantCount = emails.length
+  const labelText = token ? 'important' : 'unread'
 
   return (
     <div className="glass flex h-full w-full flex-col p-7">
@@ -136,11 +141,16 @@ export default function EmailWidget() {
           <h2 className="widget-title">Comm Center</h2>
         </div>
         <span className="rounded-full bg-rose-500/20 px-3 py-1 text-xs font-semibold text-rose-200 ring-1 ring-rose-400/30">
-          {unreadCount} unread
+          {importantCount} {labelText}
         </span>
       </header>
 
       <ul className="flex flex-1 flex-col justify-between">
+        {emails.length === 0 && (
+          <li className="my-auto text-center text-sm text-white/40">
+            Inbox zero — nothing important right now.
+          </li>
+        )}
         {emails.slice(0, 5).map(em => (
           <li
             key={em.id}

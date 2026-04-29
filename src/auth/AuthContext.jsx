@@ -7,6 +7,7 @@ import { useGoogleAuth } from './useGoogleAuth.js'
  */
 const AuthContext = createContext({
   token: null,
+  profile: null,
   isAuthed: false,
   signIn: () => {},
   signOut: () => {}

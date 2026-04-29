@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { LogIn, CheckCircle2, LogOut } from 'lucide-react'
+import { LogIn, LogOut } from 'lucide-react'
 import { useAuth } from '../auth/AuthContext.jsx'
 
 /**
@@ -7,11 +7,11 @@ import { useAuth } from '../auth/AuthContext.jsx'
  *
  *   - Visible whenever signed-out (so you can scan the URL on your phone
  *     and click sign-in once).
- *   - Auto-fades to a subtle dot when authed so it doesn't clutter the TV.
- *   - Hover to reveal a sign-out option.
+ *   - Once signed in, shrinks to just a circular Google profile avatar.
+ *   - Hover to reveal name + email + sign-out option.
  */
 export default function AuthPill() {
-  const { isAuthed, signIn, signOut } = useAuth()
+  const { isAuthed, profile, signIn, signOut } = useAuth()
   const [hovered, setHovered] = useState(false)
   const [revealed, setRevealed] = useState(true)
 
@@ -42,26 +42,45 @@ export default function AuthPill() {
         </button>
       ) : (
         <div
-          className={`glass flex items-center gap-2 rounded-full
-                      transition-all duration-500 ${
-                        expanded
-                          ? 'px-3.5 py-1.5 text-xs text-white/70'
-                          : 'p-1.5 text-transparent'
-                      }`}
+          className={`glass flex items-center gap-2.5 rounded-full p-1.5
+                      transition-all duration-500 ${expanded ? 'pr-4' : ''}`}
         >
-          <CheckCircle2
-            className={`shrink-0 text-emerald-300 transition-all ${
-              expanded ? 'h-3.5 w-3.5' : 'h-2 w-2'
-            }`}
-            strokeWidth={2.5}
-          />
+          {/* Google profile avatar — always visible when authed */}
+          {profile?.picture ? (
+            <img
+              src={profile.picture}
+              alt={profile?.name ?? 'Account'}
+              referrerPolicy="no-referrer"
+              className="h-7 w-7 shrink-0 rounded-full ring-2 ring-emerald-400/60
+                         shadow-[0_0_10px_rgba(52,211,153,0.4)]"
+            />
+          ) : (
+            <span
+              className="flex h-7 w-7 shrink-0 items-center justify-center
+                         rounded-full bg-emerald-400/20 text-xs font-bold
+                         text-emerald-200 ring-2 ring-emerald-400/60"
+            >
+              {(profile?.name ?? '?').slice(0, 1).toUpperCase()}
+            </span>
+          )}
+
           {expanded && (
             <>
-              <span>Google connected</span>
+              <div className="flex flex-col leading-tight">
+                <span className="text-xs font-semibold text-white/85">
+                  {profile?.name ?? 'Connected'}
+                </span>
+                {profile?.email && (
+                  <span className="text-[0.65rem] text-white/40">
+                    {profile.email}
+                  </span>
+                )}
+              </div>
               <button
                 onClick={signOut}
-                className="ml-2 flex items-center gap-1 rounded-full
-                           bg-white/5 px-2 py-0.5 text-[0.65rem]
+                title="Sign out"
+                className="ml-1 flex items-center gap-1 rounded-full
+                           bg-white/5 px-2 py-1 text-[0.65rem]
                            uppercase tracking-widest text-white/50
                            hover:bg-white/10 hover:text-white/80"
               >

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import axios from 'axios'
-import { format, addHours, addMinutes, startOfDay } from 'date-fns'
+import { format, addHours, addMinutes, startOfDay, isToday, isThisWeek, isTomorrow } from 'date-fns'
 import { CalendarDays, MapPin } from 'lucide-react'
 import { useAuth } from '../auth/AuthContext.jsx'
 
@@ -111,69 +111,112 @@ export default function CalendarWidget() {
     return () => { cancelled = true; clearInterval(id) }
   }, [token])
 
-  /* Filter to upcoming-or-current, cap at 5 for clean fit */
+  /* Split into Today + Later-this-week, then cap for clean fit. */
   const now = new Date()
-  const visible = events
-    .filter(e => e.end >= now)
-    .slice(0, 5)
+  const upcoming = events.filter(e => e.end >= now)
+  const todayEvents = upcoming.filter(e => isToday(e.start))
+  const laterEvents = upcoming
+    .filter(e => !isToday(e.start) && isThisWeek(e.start, { weekStartsOn: 0 }))
+
+  // Cap counts so the widget always fits in its grid slot.
+  const MAX_TODAY = todayEvents.length >= 3 ? 3 : todayEvents.length
+  const MAX_LATER = Math.max(5 - (MAX_TODAY || 0), 2)
+  const todayShown = todayEvents.slice(0, MAX_TODAY)
+  const laterShown = laterEvents.slice(0, MAX_LATER)
 
   return (
     <div className="glass flex h-full w-full flex-col p-7">
-      <header className="mb-5 flex items-center justify-between">
+      <header className="mb-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <CalendarDays className="h-5 w-5 text-white/60" strokeWidth={1.8} />
-          <h2 className="widget-title">Today's Agenda</h2>
+          <h2 className="widget-title">Agenda</h2>
         </div>
         <span className="text-sm font-medium text-white/40">
-          {format(now, 'MMM d')}
+          {format(now, 'EEE, MMM d')}
         </span>
       </header>
 
-      <ul className="flex flex-1 flex-col justify-between gap-2">
-        {visible.length === 0 && (
-          <li className="my-auto text-center text-white/40">
-            No more events today — enjoy your evening.
-          </li>
+      <div className="flex flex-1 flex-col gap-3 overflow-hidden">
+        {/* Today */}
+        <Section
+          label="Today"
+          empty="Nothing left today — enjoy your evening."
+          events={todayShown}
+          showDate={false}
+        />
+
+        {/* Later this week (only render header if there's anything to show) */}
+        {laterShown.length > 0 && (
+          <Section
+            label="Later this week"
+            events={laterShown}
+            showDate
+          />
         )}
+      </div>
+    </div>
+  )
+}
 
-        {visible.map(ev => (
-          <li
-            key={ev.id}
-            className="flex items-center gap-5 rounded-2xl px-3 py-2.5
-                       transition-colors hover:bg-white/[0.03]"
-          >
-            <div className="flex w-24 flex-col items-end leading-tight">
-              <span className="text-xl font-semibold text-white">
-                {format(ev.start, 'h:mm')}
-              </span>
-              <span className="text-[0.7rem] uppercase tracking-widest text-white/40">
-                {format(ev.start, 'a')}
-              </span>
-            </div>
-
-            <span
-              className={`h-12 w-1.5 shrink-0 rounded-full ${ev.color}
-                          shadow-[0_0_12px_currentColor] opacity-90`}
-            />
-
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-lg font-medium text-white">
-                {ev.title}
-              </p>
-              {ev.location && (
-                <p className="mt-0.5 flex items-center gap-1.5 truncate text-sm text-white/50">
-                  <MapPin className="h-3.5 w-3.5" strokeWidth={1.8} />
-                  {ev.location}
-                </p>
-              )}
-            </div>
-
-            <span className="text-sm font-medium text-white/40">
-              {format(ev.end, 'h:mm a')}
-            </span>
-          </li>
-        ))}
+/* ------------------------------------------------------------------ */
+function Section({ label, empty, events, showDate }) {
+  return (
+    <div className="flex min-h-0 flex-1 flex-col">
+      <p className="mb-1.5 text-[0.65rem] font-semibold uppercase tracking-[0.25em] text-white/40">
+        {label}
+      </p>
+      <ul className="flex flex-1 flex-col gap-1">
+        {events.length === 0 ? (
+          <li className="my-2 text-sm text-white/40">{empty}</li>
+        ) : (
+          events.map(ev => <EventRow key={ev.id} ev={ev} showDate={showDate} />)
+        )}
       </ul>
     </div>
+  )
+}
+
+function EventRow({ ev, showDate }) {
+  const dayLabel = isTomorrow(ev.start) ? 'Tomorrow' : format(ev.start, 'EEE')
+  return (
+    <li
+      className="flex items-center gap-4 rounded-2xl px-2.5 py-2
+                 transition-colors hover:bg-white/[0.03]"
+    >
+      <div className="flex w-20 flex-col items-end leading-tight">
+        {showDate && (
+          <span className="text-[0.65rem] font-semibold uppercase tracking-widest text-white/40">
+            {dayLabel}
+          </span>
+        )}
+        <span className="text-base font-semibold text-white">
+          {format(ev.start, 'h:mm')}
+          <span className="ml-1 text-[0.65rem] font-medium text-white/40">
+            {format(ev.start, 'a')}
+          </span>
+        </span>
+      </div>
+
+      <span
+        className={`h-9 w-1.5 shrink-0 rounded-full ${ev.color}
+                    shadow-[0_0_12px_currentColor] opacity-90`}
+      />
+
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-[0.95rem] font-medium text-white">
+          {ev.title}
+        </p>
+        {ev.location && (
+          <p className="mt-0.5 flex items-center gap-1.5 truncate text-xs text-white/50">
+            <MapPin className="h-3 w-3" strokeWidth={1.8} />
+            {ev.location}
+          </p>
+        )}
+      </div>
+
+      <span className="shrink-0 text-xs font-medium text-white/40">
+        {format(ev.end, 'h:mm a')}
+      </span>
+    </li>
   )
 }

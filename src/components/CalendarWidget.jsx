@@ -80,15 +80,17 @@ const mapGoogleEvent = (ev, idx) => {
 export default function CalendarWidget() {
   const [events, setEvents] = useState(buildMockEvents)
   const { token } = useAuth()
+  const tokenRef = useRef(token)
+  tokenRef.current = token
 
-  const fetchRef = useRef(async () => {})
-  fetchRef.current = async () => {
-    if (!token) { setEvents(buildMockEvents()); return }
+  const fetchEvents = useRef(async () => {
+    const t = tokenRef.current
+    if (!t) { setEvents(buildMockEvents()); return }
     try {
       const { data } = await axios.get(
         'https://www.googleapis.com/calendar/v3/calendars/primary/events',
         {
-          headers: { Authorization: `Bearer ${token}` },
+          headers: { Authorization: `Bearer ${t}` },
           params: {
             timeMin:      new Date().toISOString(),
             timeMax:      new Date(Date.now() + 14 * 86400_000).toISOString(),
@@ -103,18 +105,16 @@ export default function CalendarWidget() {
     } catch (err) {
       console.warn('[Calendar] falling back to mock:', err.message)
     }
-  }
+  }).current
 
   useEffect(() => {
-    fetchRef.current?.()
-    // Poll every 60 s — fast enough that a freshly-added event shows up
-    // within a minute on the TV.
-    const id = setInterval(() => fetchRef.current?.(), 60 * 1000)
+    fetchEvents()
+    const id = setInterval(fetchEvents, 15_000)
     return () => clearInterval(id)
   }, [token])
 
   // Refresh instantly when the TV/tab wakes up.
-  useVisibilityRefresh(() => fetchRef.current?.())
+  useVisibilityRefresh(() => fetchEvents())
 
   /* Split into Today + Later-this-week, then cap for clean fit. */
   const now = new Date()
@@ -141,7 +141,7 @@ export default function CalendarWidget() {
         </span>
       </header>
 
-      <div className="flex flex-1 flex-col gap-3 overflow-hidden">
+      <div className="flex flex-1 flex-col gap-4 overflow-y-auto">
         {/* Today */}
         <Section
           label="Today"
@@ -166,11 +166,11 @@ export default function CalendarWidget() {
 /* ------------------------------------------------------------------ */
 function Section({ label, empty, events, showDate }) {
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
+    <div className="flex flex-col">
       <p className="mb-1.5 text-[0.65rem] font-semibold uppercase tracking-[0.25em] text-white/40">
         {label}
       </p>
-      <ul className="flex flex-1 flex-col gap-1">
+      <ul className="flex flex-col gap-1">
         {events.length === 0 ? (
           <li className="my-2 text-sm text-white/40">{empty}</li>
         ) : (

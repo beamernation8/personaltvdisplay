@@ -1,11 +1,6 @@
-const CACHE = 'tv-display-v1'
-const PRECACHE = ['/', '/index.html']
+const CACHE = 'tv-display-v2'
 
-self.addEventListener('install', e => {
-  e.waitUntil(
-    caches.open(CACHE).then(c => c.addAll(PRECACHE)).then(() => self.skipWaiting())
-  )
-})
+self.addEventListener('install', () => self.skipWaiting())
 
 self.addEventListener('activate', e => {
   e.waitUntil(
@@ -18,8 +13,33 @@ self.addEventListener('activate', e => {
 self.addEventListener('fetch', e => {
   if (e.request.method !== 'GET') return
   const url = new URL(e.request.url)
+
+  // Never cache API calls
   if (url.pathname.startsWith('/api/')) return
+
+  // Navigation requests (HTML) — always network-first so deploys take effect immediately
+  if (e.request.mode === 'navigate') {
+    e.respondWith(
+      fetch(e.request)
+        .then(r => {
+          const clone = r.clone()
+          caches.open(CACHE).then(c => c.put(e.request, clone))
+          return r
+        })
+        .catch(() => caches.match(e.request))
+    )
+    return
+  }
+
+  // Static assets — cache-first with network fallback
   e.respondWith(
-    caches.match(e.request).then(cached => cached || fetch(e.request))
+    caches.match(e.request).then(cached => {
+      if (cached) return cached
+      return fetch(e.request).then(r => {
+        const clone = r.clone()
+        caches.open(CACHE).then(c => c.put(e.request, clone))
+        return r
+      })
+    })
   )
 })

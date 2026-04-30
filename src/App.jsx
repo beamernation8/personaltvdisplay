@@ -5,6 +5,7 @@ import CalendarWidget from './components/CalendarWidget.jsx'
 import EmailWidget from './components/EmailWidget.jsx'
 import SabresWidget from './components/SabresWidget.jsx'
 import NewsWidget from './components/NewsWidget.jsx'
+import ArbyWidget from './components/ArbyWidget.jsx'
 import AuthPill from './components/AuthPill.jsx'
 import { useAuth } from './auth/AuthContext.jsx'
 import { usePWAInstall } from './hooks/usePWAInstall.js'
@@ -34,16 +35,15 @@ function GoogleTVIcon({ className = '' }) {
  * Fixed 16:9 dashboard. The whole UI is sized to the viewport with CSS Grid
  * — no scrollbars, no overflow, designed to live on a TV screen forever.
  *
- * Grid (12 cols × 6 rows):
+ * Grid (12 cols x 6 rows):
  *  ┌──────────────────────────────────────────────────────────────┐
- *  │                       HEADER  (12 × 1)                       │
- *  ├──────────────────────────────┬───────────────────────────────┤
- *  │                              │                               │
- *  │      CALENDAR  (7 × 3)       │       SABRES  (5 × 3)         │
- *  │                              │                               │
- *  ├──────────────────────────────┼───────────────────────────────┤
- *  │       EMAIL    (7 × 2)       │        NEWS   (5 × 2)         │
- *  └──────────────────────────────┴───────────────────────────────┘
+ *  │                       HEADER  (12 x 1)                       │
+ *  ├────────────────────┬──────┬──────────────────────────────────┤
+ *  │  CALENDAR (5 x 3)  │      │       SABRES  (5 x 3)            │
+ *  │                    │ARBIE │                                   │
+ *  ├────────────────────┤(2x5) ├──────────────────────────────────┤
+ *  │   EMAIL  (5 x 2)   │      │        NEWS   (5 x 2)            │
+ *  └────────────────────┴──────┴──────────────────────────────────┘
  */
 export default function App() {
   const { isAuthed, signIn } = useAuth()
@@ -65,10 +65,17 @@ export default function App() {
         </section>
 
         <section
-          className="col-span-7 row-span-3 animate-fade-in"
+          className="col-span-5 row-span-3 animate-fade-in"
           style={{ animationDelay: '80ms' }}
         >
           <CalendarWidget />
+        </section>
+
+        <section
+          className="col-span-2 row-span-5 animate-fade-in"
+          style={{ animationDelay: '120ms' }}
+        >
+          <ArbyWidget />
         </section>
 
         <section
@@ -79,7 +86,7 @@ export default function App() {
         </section>
 
         <section
-          className="col-span-7 row-span-2 animate-fade-in"
+          className="col-span-5 row-span-2 animate-fade-in"
           style={{ animationDelay: '240ms' }}
         >
           <EmailWidget />

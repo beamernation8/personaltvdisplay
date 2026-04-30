@@ -93,3 +93,21 @@ body,
   0%, 100% { transform: translate(0, 0) scale(1); }
   50%      { transform: translate(-2%, 1.5%) scale(1.05); }
 }
+
+/* Arbie idle blink animation */
+.arbie-blink {
+  animation: arbieBlink 4s ease-in-out infinite;
+}
+@keyframes arbieBlink {
+  0%, 42%, 48%, 100% { transform: scaleY(1); }
+  45%                 { transform: scaleY(0.05); }
+}
+
+/* Arbie gentle idle float */
+.arbie-float {
+  animation: arbieFloat 6s ease-in-out infinite;
+}
+@keyframes arbieFloat {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-4px); }
+}

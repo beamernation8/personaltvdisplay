@@ -7,6 +7,9 @@
       "VITE_GOOGLE_CLIENT_ID": "812118282219-crhsi731r4ad0toqnjasofcef0rehke0.apps.googleusercontent.com"
     }
   },
+  "functions": {
+    "api/sports-news.js": { "maxDuration": 30 }
+  },
   "rewrites": [
     { "source": "/api/nhl/:path*", "destination": "/api/nhl?path=:path*" },
     { "source": "/((?!api/).*)",  "destination": "/index.html" }

@@ -59,14 +59,33 @@ const fetchWithTimeout = (url, ms = 3500, opts = {}) =>
     new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), ms))
   ])
 
+/**
+ * Resolve a Google News wrapper URL to the real article URL by following
+ * the redirect chain (HEAD request, read Location headers).
+ * Falls back to the original URL if resolution fails.
+ */
+async function resolveUrl(url) {
+  if (!url) return url
+  try {
+    const r = await fetchWithTimeout(url, 4000, { redirect: 'follow', method: 'HEAD' })
+    return r.url || url
+  } catch {
+    return url
+  }
+}
+
 /** Extract OpenGraph / Twitter card image URL from an article HTML page. */
 async function fetchOgImage(articleUrl) {
   if (!articleUrl) return null
   try {
-    const r = await fetchWithTimeout(articleUrl, 3500, { redirect: 'follow' })
+    // Google News links are redirect wrappers — resolve the real article URL first.
+    const realUrl = await resolveUrl(articleUrl)
+    // Skip if we ended up back on a google.com domain (interstitial, not the article).
+    if (/google\.com/i.test(new URL(realUrl).hostname)) return null
+
+    const r = await fetchWithTimeout(realUrl, 4000, { redirect: 'follow' })
     if (!r.ok) return null
     const html = await r.text()
-    // Look for og:image (or twitter:image) — both attribute orders.
     const patterns = [
       /<meta[^>]+property=["']og:image(?::secure_url)?["'][^>]*content=["']([^"']+)["']/i,
       /<meta[^>]+content=["']([^"']+)["'][^>]*property=["']og:image(?::secure_url)?["']/i,

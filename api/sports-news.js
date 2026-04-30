@@ -60,30 +60,73 @@ const fetchWithTimeout = (url, ms = 3500, opts = {}) =>
   ])
 
 /**
- * Resolve a Google News wrapper URL to the real article URL by following
- * the redirect chain (HEAD request, read Location headers).
- * Falls back to the original URL if resolution fails.
+ * Decode a Google News RSS article URL to the real publisher URL.
+ * Google News switched to "AU_yqL…" encoding in July 2024 which requires
+ * a POST to their batchexecute endpoint.
  */
-async function resolveUrl(url) {
-  if (!url) return url
+async function decodeGoogleNewsUrl(gnUrl) {
+  if (!gnUrl) return gnUrl
   try {
-    const r = await fetchWithTimeout(url, 4000, { redirect: 'follow', method: 'HEAD' })
-    return r.url || url
+    const u = new URL(gnUrl)
+    const parts = u.pathname.split('/')
+    if (u.hostname !== 'news.google.com' || parts[parts.length - 2] !== 'articles') return gnUrl
+    const base64 = parts[parts.length - 1].split('?')[0]
+
+    // Try offline base64 decode first (older format)
+    try {
+      const str = Buffer.from(base64, 'base64').toString('binary')
+      const prefix = Buffer.from([0x08, 0x13, 0x22]).toString('binary')
+      let s = str.startsWith(prefix) ? str.slice(prefix.length) : str
+      const suffix = Buffer.from([0xd2, 0x01, 0x00]).toString('binary')
+      if (s.endsWith(suffix)) s = s.slice(0, -suffix.length)
+      const bytes = Uint8Array.from(s, c => c.charCodeAt(0))
+      const len = bytes[0]
+      const decoded = len >= 0x80 ? s.slice(2, len + 2) : s.slice(1, len + 1)
+      if (decoded.startsWith('http') && !decoded.startsWith('AU_yqL')) return decoded
+    } catch { /* fall through to batchexecute */ }
+
+    // New-style AU_yqL encoding — use Google's batchexecute API
+    const body =
+      'f.req=' +
+      encodeURIComponent(
+        '[[[\"Fbv4je\",\"[\\\"garturlreq\\\",[[\\\"en-US\\\",\\\"US\\\",[\\\"FINANCE_TOP_INDICES\\\",\\\"WEB_TEST_1_0_0\\\"],null,null,1,1,\\\"US:en\\\",null,180,null,null,null,null,null,0,null,null,[1608992183,723341000]],\\\"en-US\\\",\\\"US\\\",1,[2,3,4,8],1,0,\\\"655000234\\\",0,0,null,0],\\\"' +
+        base64 +
+        '\\\"]\",null,\"generic\"]]]'
+      )
+
+    const r = await fetchWithTimeout(
+      'https://news.google.com/_/DotsSplashUi/data/batchexecute?rpcids=Fbv4je',
+      5000,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded;charset=utf-8',
+          Referer: 'https://news.google.com/'
+        },
+        body
+      }
+    )
+    if (!r.ok) return gnUrl
+    const text = await r.text()
+    const header = '[\"garturlres\",\"'
+    const footer = '\",\"'
+    if (!text.includes(header)) return gnUrl
+    const start = text.substring(text.indexOf(header) + header.length)
+    const realUrl = start.substring(0, start.indexOf(footer))
+    return realUrl.startsWith('http') ? realUrl : gnUrl
   } catch {
-    return url
+    return gnUrl
   }
 }
 
 /** Extract OpenGraph / Twitter card image URL from an article HTML page. */
-async function fetchOgImage(articleUrl) {
-  if (!articleUrl) return null
+async function fetchOgImage(gnArticleUrl) {
+  if (!gnArticleUrl) return null
   try {
-    // Google News links are redirect wrappers — resolve the real article URL first.
-    const realUrl = await resolveUrl(articleUrl)
-    // Skip if we ended up back on a google.com domain (interstitial, not the article).
-    if (/google\.com/i.test(new URL(realUrl).hostname)) return null
+    const articleUrl = await decodeGoogleNewsUrl(gnArticleUrl)
+    if (!articleUrl || /news\.google\.com/i.test(articleUrl)) return null
 
-    const r = await fetchWithTimeout(realUrl, 4000, { redirect: 'follow' })
+    const r = await fetchWithTimeout(articleUrl, 4000, { redirect: 'follow' })
     if (!r.ok) return null
     const html = await r.text()
     const patterns = [

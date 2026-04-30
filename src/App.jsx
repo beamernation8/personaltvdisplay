@@ -5,6 +5,7 @@ import EmailWidget from './components/EmailWidget.jsx'
 import SabresWidget from './components/SabresWidget.jsx'
 import NewsWidget from './components/NewsWidget.jsx'
 import AuthPill from './components/AuthPill.jsx'
+import InstallPill from './components/InstallPill.jsx'
 
 /**
  * Fixed 16:9 dashboard. The whole UI is sized to the viewport with CSS Grid
@@ -65,6 +66,7 @@ export default function App() {
       </main>
 
       <AuthPill />
+      <InstallPill />
     </div>
   )
 }

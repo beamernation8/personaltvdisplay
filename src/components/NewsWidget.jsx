@@ -100,31 +100,42 @@ export default function NewsWidget() {
 
       {/* Two-column layout: featured on the left (big), compact list on the right */}
       <div className="grid min-h-0 flex-1 grid-cols-[1.05fr_1fr] gap-5">
-        {/* Featured (large) — image on top, headline + meta beneath */}
+        {/* Featured (large) — image fills top, headline + meta beneath */}
         {featured && (
-          <article
-            key={featured.link}
-            className="animate-fade-in flex min-h-0 flex-col"
-          >
-            <div className="relative min-h-0 flex-1 overflow-hidden rounded-xl ring-1 ring-white/10">
-              <Thumbnail
-                src={featured.image}
-                domain={featured.domain}
-                fill
-                className="rounded-xl"
-              />
-              {/* Subtle gradient over image so the topic chip on it is readable */}
-              <div className="pointer-events-none absolute inset-x-0 top-0 h-12 bg-gradient-to-b from-black/40 to-transparent" />
-              <span className="absolute left-2 top-2 rounded-full bg-black/40 px-2 py-0.5 text-[0.6rem] font-bold uppercase tracking-widest text-white/95 backdrop-blur-sm">
-                {featured.topicLabel}
-              </span>
-            </div>
+          <article key={featured.link} className="animate-fade-in flex min-h-0 flex-col">
+            {/* Image area — only show if a real non-favicon image exists */}
+            {featured.image ? (
+              <div className="relative min-h-0 flex-1 overflow-hidden rounded-xl ring-1 ring-white/10">
+                <img
+                  src={featured.image}
+                  alt=""
+                  referrerPolicy="no-referrer"
+                  className="absolute inset-0 h-full w-full object-cover"
+                  onError={e => { e.currentTarget.style.display = 'none' }}
+                />
+                <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/20" />
+                <span className="absolute left-2.5 top-2.5 rounded-full bg-black/50 px-2 py-0.5
+                                 text-[0.6rem] font-bold uppercase tracking-widest text-white/90 backdrop-blur-sm">
+                  {featured.topicLabel}
+                </span>
+              </div>
+            ) : (
+              /* No image — show a clean dark card with colored accent bar */
+              <div className="relative flex min-h-0 flex-1 items-end overflow-hidden rounded-xl
+                              bg-gradient-to-br from-white/[0.07] to-white/[0.02] ring-1 ring-white/10 p-4">
+                <span className="absolute left-0 top-0 h-full w-1 rounded-l-xl
+                                 bg-gradient-to-b from-white/30 to-white/10" />
+                <p className="line-clamp-3 text-sm font-semibold leading-snug text-white/70">
+                  {featured.topicLabel}
+                </p>
+              </div>
+            )}
 
-            <p className="mt-2.5 line-clamp-2 text-balance text-[0.95rem] font-semibold leading-snug text-white">
+            <p className="mt-2.5 line-clamp-2 text-[0.95rem] font-semibold leading-snug text-white">
               {featured.title}
             </p>
-            <p className="mt-1 flex items-center gap-1.5 text-[0.65rem] uppercase tracking-widest text-white/45">
-              <span className="font-semibold text-white/65">{featured.source}</span>
+            <p className="mt-1 flex items-center gap-1.5 text-[0.65rem] uppercase tracking-widest text-white/40">
+              <span className="font-semibold text-white/60">{featured.source}</span>
               {featured.publishedAt && (
                 <>
                   <span className="text-white/20">·</span>
@@ -137,110 +148,38 @@ export default function NewsWidget() {
           </article>
         )}
 
-        {/* Compact list (right) */}
-        <ul className="flex min-h-0 flex-col gap-2 overflow-hidden">
-          {others.map((it, i) => (
+        {/* Compact list (right) — divider-separated, no images */}
+        <ul className="flex min-h-0 flex-col divide-y divide-white/[0.07] overflow-hidden">
+          {others.map((it) => (
             <li
               key={it.link}
-              className="flex min-h-0 flex-1 cursor-default items-center gap-2.5
-                         rounded-lg px-1 transition-colors hover:bg-white/[0.03]"
+              className="flex min-h-0 flex-1 cursor-default flex-col justify-center py-2
+                         px-1 transition-colors hover:bg-white/[0.03]"
               onClick={() => {
-                // Click to make this the featured story (then auto-cycle resumes)
-                const clickedItem = items.find(x => x.link === it.link)
-                if (clickedItem) {
-                  const idx = items.indexOf(clickedItem)
-                  if (idx >= 0) setActiveIdx(idx)
-                }
+                const idx = items.indexOf(items.find(x => x.link === it.link))
+                if (idx >= 0) setActiveIdx(idx)
               }}
             >
-              <Thumbnail
-                src={it.image}
-                domain={it.domain}
-                size={42}
-                className="rounded-md"
-              />
-              <div className="min-w-0 flex-1">
-                <p className="line-clamp-2 text-[0.8rem] leading-tight text-white/85">
-                  {it.title}
-                </p>
-                <p className="mt-0.5 flex items-center gap-1 text-[0.6rem] uppercase tracking-widest text-white/40">
-                  <span className="font-semibold text-white/55">{it.topicLabel}</span>
-                  <span className="text-white/15">·</span>
-                  <span className="normal-case tracking-normal">
-                    {it.publishedAt
-                      ? formatDistanceToNow(new Date(it.publishedAt), { addSuffix: false })
-                      : it.source}
-                  </span>
-                </p>
-              </div>
+              <p className="line-clamp-2 text-[0.78rem] font-medium leading-snug text-white/85">
+                {it.title}
+              </p>
+              <p className="mt-0.5 flex items-center gap-1.5 text-[0.58rem] uppercase tracking-widest text-white/38">
+                <span className="font-bold text-white/50">{it.topicLabel}</span>
+                <span className="text-white/15">·</span>
+                <span>{it.source}</span>
+                {it.publishedAt && (
+                  <>
+                    <span className="text-white/15">·</span>
+                    <span className="normal-case tracking-normal">
+                      {formatDistanceToNow(new Date(it.publishedAt), { addSuffix: false })}
+                    </span>
+                  </>
+                )}
+              </p>
             </li>
           ))}
         </ul>
       </div>
     </div>
-  )
-}
-
-/* ------------------------------------------------------------------ */
-/* Smart thumbnail:
- *   1. Prefers the article's OpenGraph image (cropped, full-bleed).
- *   2. Falls back to the publisher's favicon centered on a subtle tile.
- *   3. Falls back again to a plain gradient tile if everything 404s.
- */
-function Thumbnail({ src, domain, size, fill = false, className = '' }) {
-  const [imgErrored, setImgErrored] = useState(false)
-  const [favErrored, setFavErrored] = useState(false)
-
-  // `fill` = absolutely fill parent (used for the featured hero image).
-  // Otherwise use a fixed `size` square.
-  const wrapperClass = fill
-    ? 'absolute inset-0'
-    : 'shrink-0'
-  const style = fill ? undefined : { width: size, height: size }
-
-  if (src && !imgErrored) {
-    return (
-      <img
-        src={src}
-        alt=""
-        referrerPolicy="no-referrer"
-        onError={() => setImgErrored(true)}
-        style={style}
-        className={`${wrapperClass} h-full w-full object-cover ${className} ${
-          fill ? '' : 'ring-1 ring-white/10'
-        }`}
-      />
-    )
-  }
-
-  // Favicon tile fallback
-  if (domain && !favErrored) {
-    const fSize = fill ? 256 : Math.max(64, Math.min(size, 128))
-    return (
-      <div
-        style={style}
-        className={`${wrapperClass} flex items-center justify-center ${className}
-                    bg-gradient-to-br from-white/[0.08] to-white/[0.02]
-                    ${fill ? '' : 'ring-1 ring-white/5'}`}
-      >
-        <img
-          src={`https://www.google.com/s2/favicons?sz=${fSize}&domain=${domain}`}
-          alt=""
-          referrerPolicy="no-referrer"
-          onError={() => setFavErrored(true)}
-          className={fill ? 'h-1/3 w-1/3 object-contain opacity-90' : 'h-1/2 w-1/2 object-contain'}
-        />
-      </div>
-    )
-  }
-
-  // Final fallback — empty tile
-  return (
-    <div
-      style={style}
-      className={`${wrapperClass} ${className}
-                  bg-gradient-to-br from-white/[0.08] to-white/[0.02]
-                  ${fill ? '' : 'ring-1 ring-white/5'}`}
-    />
   )
 }

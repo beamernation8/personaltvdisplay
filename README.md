@@ -7,7 +7,7 @@ A premium, always-on **16:9 living-room dashboard** built with **Vite + React + 
 - **Header** — Large 12-hour clock, full date, OpenWeather current conditions
 - **Today's Agenda** — Up to 5 upcoming Google Calendar events
 - **Comm Center** — 5 most recent important unread Gmail messages
-- **Sabres Tracker** — Next/live Buffalo Sabres game from the public NHL API (Team ID 17)
+- **Daily Brief** — AI-generated daily overview (priorities, schedule, heads-up) via Gemini + your Calendar/Gmail
 - **Top Headlines** — Rotating top-3+ headlines from NewsAPI
 
 > Every module ships with **realistic mock data**. The dashboard is fully polished out of the box, even before you add any API keys.
@@ -81,7 +81,7 @@ personaltvdisplay/
       ├─ HeaderWidget.jsx
       ├─ CalendarWidget.jsx
       ├─ EmailWidget.jsx
-      ├─ SabresWidget.jsx
+      ├─ DailyBriefWidget.jsx
       ├─ NewsWidget.jsx
       └─ AuthPill.jsx       ← corner sign-in pill
 ```

@@ -9,7 +9,8 @@
   },
   "functions": {
     "api/sports-news.js": { "maxDuration": 30 },
-    "api/arby.js": { "maxDuration": 15 }
+    "api/arby.js": { "maxDuration": 15 },
+    "api/daily-brief.js": { "maxDuration": 20 }
   },
   "rewrites": [
     { "source": "/api/nhl/:path*", "destination": "/api/nhl?path=:path*" },

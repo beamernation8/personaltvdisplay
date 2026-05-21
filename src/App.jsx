@@ -3,7 +3,7 @@ import { LogIn } from 'lucide-react'
 import HeaderWidget from './components/HeaderWidget.jsx'
 import CalendarWidget from './components/CalendarWidget.jsx'
 import EmailWidget from './components/EmailWidget.jsx'
-import SabresWidget from './components/SabresWidget.jsx'
+import DailyBriefWidget from './components/DailyBriefWidget.jsx'
 import NewsWidget from './components/NewsWidget.jsx'
 import ArbyWidget from './components/ArbyWidget.jsx'
 import AuthPill from './components/AuthPill.jsx'
@@ -39,7 +39,7 @@ function GoogleTVIcon({ className = '' }) {
  *  ┌──────────────────────────────────────────────────────────────┐
  *  │                       HEADER  (12 x 1)                       │
  *  ├────────────────────┬──────┬──────────────────────────────────┤
- *  │  CALENDAR (5 x 3)  │      │       SABRES  (5 x 3)            │
+ *  │  CALENDAR (5 x 3)  │      │    DAILY BRIEF (5 x 3)            │
  *  │                    │ARBIE │                                   │
  *  ├────────────────────┤(2x5) ├──────────────────────────────────┤
  *  │   EMAIL  (5 x 2)   │      │        NEWS   (5 x 2)            │
@@ -82,7 +82,7 @@ export default function App() {
           className="col-span-5 row-span-3 animate-fade-in"
           style={{ animationDelay: '160ms' }}
         >
-          <SabresWidget />
+          <DailyBriefWidget />
         </section>
 
         <section

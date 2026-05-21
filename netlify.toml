@@ -16,6 +16,13 @@
   status = 200
   force  = true
 
+# Forward /api/daily-brief to the serverless daily-brief function.
+[[redirects]]
+  from   = "/api/daily-brief"
+  to     = "/.netlify/functions/daily-brief"
+  status = 200
+  force  = true
+
 # SPA fallback — serve index.html for any unmatched route.
 [[redirects]]
   from   = "/*"
